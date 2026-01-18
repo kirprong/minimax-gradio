@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniMax AI Chat</title>
+    <meta name="description" content="Modern AI chat interface powered by MiniMax-Text-01">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="chat-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo-icon">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="32" height="32" rx="8" fill="url(#gradient)" />
+                            <path d="M16 8L22 12V20L16 24L10 20V12L16 8Z" stroke="white" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                            <defs>
+                                <linearGradient id="gradient" x1="0" y1="0" x2="32" y2="32">
+                                    <stop offset="0%" stop-color="#667eea" />
+                                    <stop offset="100%" stop-color="#764ba2" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                    </div>
+                    <div class="logo-text">
+                        <h1>MiniMax AI</h1>
+                        <span class="status-badge">
+                            <span class="status-dot"></span>
+                            <span id="connection-status">Подключение...</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button id="clear-chat-btn" class="icon-btn" title="Очистить чат">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                        </svg>
+                    </button>
+                    <button id="settings-btn" class="icon-btn" title="Настройки">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="3" />
+                            <path d="M12 1v6m0 6v6M1 12h6m6 0h6" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Chat Container -->
+        <main class="chat-container">
+            <div id="messages-container" class="messages-container">
+                <!-- Welcome Message -->
+                <div class="welcome-message">
+                    <div class="welcome-icon">
+                        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="32" cy="32" r="32" fill="url(#welcomeGradient)" opacity="0.1" />
+                            <path d="M32 16L44 24V40L32 48L20 40V24L32 16Z" stroke="url(#welcomeGradient)"
+                                stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                            <defs>
+                                <linearGradient id="welcomeGradient" x1="0" y1="0" x2="64" y2="64">
+                                    <stop offset="0%" stop-color="#667eea" />
+                                    <stop offset="100%" stop-color="#764ba2" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                    </div>
+                    <h2>Добро пожаловать в MiniMax AI</h2>
+                    <p>Создавайте персонажей и погружайтесь в ролевые игры! Опишите роль в первом сообщении, и AI
+                        запомнит её на протяжении всего разговора.</p>
+                    <div class="quick-prompts">
+                        <button class="quick-prompt-btn"
+                            data-prompt="Ты - мудрый волшебник из древней академии магии. Говори загадками и делись древними знаниями.">
+                            <span class="prompt-icon">🧙</span>
+                            <span>Волшебник</span>
+                        </button>
+                        <button class="quick-prompt-btn"
+                            data-prompt="Ты - опытный детектив в стиле нуар. Расследуй загадочные преступления и говори с циничным юмором.">
+                            <span class="prompt-icon">🕵️</span>
+                            <span>Детектив</span>
+                        </button>
+                        <button class="quick-prompt-btn"
+                            data-prompt="Ты - космический исследователь на далёкой планете. Описывай удивительные открытия и инопланетные формы жизни.">
+                            <span class="prompt-icon">🚀</span>
+                            <span>Исследователь</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Input Area -->
+        <footer class="input-area">
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea id="message-input" placeholder="Введите сообщение..." rows="1"
+                        maxlength="8000"></textarea>
+                    <div class="input-actions">
+                        <span id="char-counter" class="char-counter">0/8000</span>
+                        <button id="send-btn" class="send-btn" disabled>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                            </svg>
+                            <span>Отправить</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="input-footer">
+                <p>MiniMax AI может допускать ошибки. Проверяйте важную информацию.</p>
+            </div>
+        </footer>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p>Подключение к MiniMax AI...</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/main.js"></script>
+</body>
+
+</html>
