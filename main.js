@@ -467,6 +467,11 @@ async function handleRequestAudio(text, container) {
     const btn = container.querySelector('.audio-btn');
     if (btn) btn.style.display = 'none';
 
+    // Find the message bubble to apply blur
+    const messageContent = container.closest('.message-content');
+    const bubble = messageContent ? messageContent.querySelector('.message-bubble') : null;
+    if (bubble) bubble.classList.add('blur');
+
     // Show loading
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'audio-loading';
@@ -538,6 +543,8 @@ async function handleRequestAudio(text, container) {
             container.appendChild(errorMsg);
             setTimeout(() => errorMsg.remove(), 3000);
         }
+    } finally {
+        if (bubble) bubble.classList.remove('blur');
     }
 }
 

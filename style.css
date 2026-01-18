@@ -336,6 +336,11 @@ body {
     line-height: 1.6;
     word-wrap: break-word;
     box-shadow: var(--shadow-sm);
+    transition: filter var(--transition-base);
+}
+
+.message-bubble.blur {
+    filter: blur(4px);
 }
 
 .message.user .message-bubble {
