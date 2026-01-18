@@ -31,7 +31,13 @@ const state = {
     isProcessing: false,
     conversationHistory: [],
     currentSessionId: null,
-    systemPrompt: null  // Stores first message as system prompt for character role
+    systemPrompt: null,  // Stores first message as system prompt for character role
+    // Voice Transcription State
+    whisperClient: null,
+    isRecording: false,
+    isTranscribing: false,
+    mediaRecorder: null,
+    audioChunks: []
 };
 
 // ===== DOM Elements =====
@@ -44,7 +50,8 @@ const elements = {
     statusDot: null,
     charCounter: null,
     loadingOverlay: null,
-    quickPromptBtns: null
+    quickPromptBtns: null,
+    recordBtn: null
 };
 
 // ===== Initialization =====
@@ -59,6 +66,7 @@ async function init() {
     elements.charCounter = document.getElementById('char-counter');
     elements.loadingOverlay = document.getElementById('loading-overlay');
     elements.quickPromptBtns = document.querySelectorAll('.quick-prompt-btn');
+    elements.recordBtn = document.getElementById('record-btn');
 
     // Setup event listeners
     setupEventListeners();
@@ -152,6 +160,9 @@ function setupEventListeners() {
             elements.messageInput.focus();
         });
     });
+
+    // Voice Record Button
+    elements.recordBtn.addEventListener('click', handleVoiceRecordToggle);
 }
 
 // ===== Message Handling =====
@@ -277,6 +288,108 @@ async function handleSendMessage() {
     } finally {
         state.isProcessing = false;
         updateSendButtonState();
+    }
+}
+
+// ===== Voice Recording & Transcription =====
+async function handleVoiceRecordToggle() {
+    if (state.isTranscribing) return;
+
+    if (state.isRecording) {
+        stopRecording();
+    } else {
+        await startRecording();
+    }
+}
+
+async function startRecording() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        state.mediaRecorder = new MediaRecorder(stream);
+        state.audioChunks = [];
+
+        state.mediaRecorder.addEventListener('dataavailable', (event) => {
+            state.audioChunks.push(event.data);
+        });
+
+        state.mediaRecorder.addEventListener('stop', handleRecordingStop);
+
+        state.mediaRecorder.start();
+        state.isRecording = true;
+        updateRecordButtonUI();
+
+    } catch (error) {
+        console.error('Error accessing microphone:', error);
+        alert('Не удалось получить доступ к микрофону. Проверьте разрешения.');
+    }
+}
+
+function stopRecording() {
+    if (state.mediaRecorder && state.isRecording) {
+        state.mediaRecorder.stop();
+        // Stop all tracks to release microphone
+        state.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        state.isRecording = false;
+        updateRecordButtonUI();
+    }
+}
+
+async function handleRecordingStop() {
+    const audioBlob = new Blob(state.audioChunks, { type: 'audio/wav' });
+    await transcribeAudio(audioBlob);
+}
+
+async function transcribeAudio(audioBlob) {
+    try {
+        state.isTranscribing = true;
+        updateRecordButtonUI();
+
+        // Connect to Whisper client if not already connected
+        if (!state.whisperClient) {
+            state.whisperClient = await Client.connect("BalashovIlya/whisper-transcriber");
+        }
+
+        const result = await state.whisperClient.predict("/predict", {
+            audio_file: audioBlob,
+        });
+
+        const transcribedText = result.data ? result.data[0] : null;
+
+        if (transcribedText) {
+            // Append text to input
+            const currentText = elements.messageInput.value;
+            elements.messageInput.value = currentText + (currentText.length > 0 ? ' ' : '') + transcribedText;
+
+            // Trigger input events
+            autoResizeTextarea();
+            updateCharCounter();
+            updateSendButtonState();
+        }
+
+    } catch (error) {
+        console.error('Transcription error:', error);
+        alert('Ошибка при распознавании речи. Попробуйте еще раз.');
+    } finally {
+        state.isTranscribing = false;
+        updateRecordButtonUI();
+    }
+}
+
+function updateRecordButtonUI() {
+    const btn = elements.recordBtn;
+
+    // Reset classes
+    btn.classList.remove('recording', 'processing');
+
+    if (state.isRecording) {
+        btn.classList.add('recording');
+        btn.title = "Остановить запись";
+    } else if (state.isTranscribing) {
+        btn.classList.add('processing');
+        btn.title = "Обработка...";
+    } else {
+        btn.title = "Голосовой ввод";
     }
 }
 

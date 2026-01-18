@@ -615,3 +615,46 @@ body {
     margin: var(--spacing-md) 0;
     font-size: 0.875rem;
 }
+
+/* ===== Voice Record Button ===== */
+.record-btn {
+    margin-right: var(--spacing-sm);
+    color: var(--text-secondary);
+    transition: all var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.record-btn:hover {
+    color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.record-btn.recording {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+    animation: pulse-red 1.5s infinite;
+}
+
+.record-btn.processing {
+    color: var(--primary-color);
+    cursor: wait;
+}
+
+.record-btn.processing svg {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes pulse-red {
+    0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
