@@ -27,6 +27,7 @@ allow your reply to be in different languages in the same message.
 // ===== State Management =====
 const state = {
     client: null,
+    ttsClient: null, // TTS Client
     isConnected: false,
     isProcessing: false,
     conversationHistory: [],
@@ -87,11 +88,14 @@ async function connectToGradio() {
         // Connect to MiniMax Gradio space
         state.client = await Client.connect("MiniMaxAI/MiniMax-Text-01");
 
+        // Initialize TTS Client (lazy load or parallel)
+        state.ttsClient = await Client.connect("NihalGazi/Text-To-Speech-Unlimited");
+
         state.isConnected = true;
         updateConnectionStatus('connected', 'Подключено');
         showLoadingOverlay(false);
 
-        console.log('✅ Successfully connected to MiniMax AI');
+        console.log('✅ Successfully connected to MiniMax AI and TTS API');
     } catch (error) {
         console.error('❌ Failed to connect to MiniMax AI:', error);
         state.isConnected = false;
@@ -116,6 +120,11 @@ async function reconnectToGradio() {
         // Create fresh connection
         state.client = await Client.connect("MiniMaxAI/MiniMax-Text-01");
         state.isConnected = true;
+
+        // Ensure TTS client is also ready
+        if (!state.ttsClient) {
+            state.ttsClient = await Client.connect("NihalGazi/Text-To-Speech-Unlimited");
+        }
 
         console.log('✅ Reconnection successful');
         return true;
@@ -414,6 +423,27 @@ function addMessageToUI(role, content) {
     time.textContent = formatTime(new Date());
 
     messageContent.appendChild(bubble);
+
+    // Add audio request button for AI messages
+    if (role === 'ai' && content.length > 0) {
+        const audioContainer = document.createElement('div');
+        audioContainer.className = 'audio-container';
+
+        const audioBtn = document.createElement('button');
+        audioBtn.className = 'audio-btn';
+        audioBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+            Запросить аудио
+        `;
+
+        audioBtn.onclick = () => handleRequestAudio(content, audioContainer);
+        audioContainer.appendChild(audioBtn);
+        messageContent.appendChild(audioContainer);
+    }
+
     messageContent.appendChild(time);
 
     messageDiv.appendChild(avatar);
@@ -425,6 +455,170 @@ function addMessageToUI(role, content) {
     scrollToBottom();
 
     return messageDiv;
+}
+
+// ===== TTS Logic =====
+async function handleRequestAudio(text, container) {
+    // Prevent double clicks
+    if (container.querySelector('.audio-loading') || container.querySelector('audio')) {
+        return;
+    }
+
+    const btn = container.querySelector('.audio-btn');
+    if (btn) btn.style.display = 'none';
+
+    // Show loading
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'audio-loading';
+    loadingDiv.innerHTML = `
+        <div class="spinner-sm"></div>
+        <span>Генерация аудио...</span>
+    `;
+    container.appendChild(loadingDiv);
+
+    try {
+        if (!state.ttsClient) {
+            state.ttsClient = await Client.connect("NihalGazi/Text-To-Speech-Unlimited");
+        }
+
+        // Split text into chunks
+        const chunks = splitTextForTTS(text, 200);
+        const audioBlobs = [];
+
+        for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+
+            // Update loading text
+            loadingDiv.querySelector('span').textContent = `Обработка части ${i + 1} из ${chunks.length}...`;
+
+            const result = await state.ttsClient.predict("/text_to_speech_app", {
+                prompt: chunk,
+                voice: "nova",
+                emotion: "love and romantic",
+                use_random_seed: true,
+                specific_seed: 0,
+                api_key_input: "", // Not used/needed based on user sample
+            });
+
+            // Result is a file path or URL
+            const audioUrl = result.data ? result.data[0] : null;
+            if (audioUrl) {
+                const response = await fetch(audioUrl.url);
+                const blob = await response.blob();
+                audioBlobs.push(blob);
+            }
+        }
+
+        if (audioBlobs.length > 0) {
+            // Merge audio blobs
+            const mergedBlob = await mergeWavBlobs(audioBlobs);
+            const mergedUrl = URL.createObjectURL(mergedBlob);
+
+            // Create audio player
+            const audioPlayer = document.createElement('audio');
+            audioPlayer.controls = true;
+            audioPlayer.src = mergedUrl;
+
+            // Cleanup UI
+            loadingDiv.remove();
+            container.appendChild(audioPlayer);
+
+            // Auto play if it's a short clip or user preference (optional, keeping manual play for now)
+        } else {
+            throw new Error("No audio generated");
+        }
+    } catch (error) {
+        console.error("TTS Error:", error);
+        loadingDiv.remove();
+        if (btn) {
+            btn.style.display = 'flex';
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'tts-error';
+            errorMsg.textContent = 'Ошибка генерации';
+            container.appendChild(errorMsg);
+            setTimeout(() => errorMsg.remove(), 3000);
+        }
+    }
+}
+
+function splitTextForTTS(text, maxLength) {
+    const chunks = [];
+    let remainingText = text;
+
+    while (remainingText.length > 0) {
+        if (remainingText.length <= maxLength) {
+            chunks.push(remainingText);
+            break;
+        }
+
+        // Search for sentence ending within the limit
+        let splitIndex = -1;
+        const searchWindow = remainingText.substring(0, maxLength);
+
+        // Prefer splitting at period, question mark, or exclamation
+        const lastPeriod = searchWindow.lastIndexOf('.');
+        const lastQuestion = searchWindow.lastIndexOf('?');
+        const lastExclamation = searchWindow.lastIndexOf('!');
+
+        splitIndex = Math.max(lastPeriod, lastQuestion, lastExclamation);
+
+        // If no punctuation found, split at space
+        if (splitIndex === -1) {
+            splitIndex = searchWindow.lastIndexOf(' ');
+        }
+
+        // If no space found (very long word), force split
+        if (splitIndex === -1) {
+            splitIndex = maxLength;
+        } else {
+            // Include the punctuation in the current chunk
+            splitIndex += 1;
+        }
+
+        chunks.push(remainingText.substring(0, splitIndex).trim());
+        remainingText = remainingText.substring(splitIndex).trim();
+    }
+
+    return chunks;
+}
+
+// Function to merge WAV blobs (simplified, assumes 44-byte header)
+async function mergeWavBlobs(blobs) {
+    if (blobs.length === 1) return blobs[0];
+
+    const buffers = await Promise.all(blobs.map(b => b.arrayBuffer()));
+
+    // Calculate total length (minus headers for all but first)
+    // WAV header is usually 44 bytes
+    const headerSize = 44;
+    let totalLength = buffers[0].byteLength;
+
+    for (let i = 1; i < buffers.length; i++) {
+        totalLength += (buffers[i].byteLength - headerSize);
+    }
+
+    const result = new Uint8Array(totalLength);
+
+    // Copy first buffer completely
+    result.set(new Uint8Array(buffers[0]), 0);
+
+    let offset = buffers[0].byteLength;
+
+    // Copy remaining buffers without header
+    for (let i = 1; i < buffers.length; i++) {
+        const data = new Uint8Array(buffers[i]).subarray(headerSize);
+        result.set(data, offset);
+        offset += data.length;
+    }
+
+    // Update file size in header (bytes 4-7)
+    const view = new DataView(result.buffer);
+    view.setUint32(4, totalLength - 8, true); // ChunkSize
+
+    // Update data chunk size (bytes 40-43)
+    view.setUint32(40, totalLength - 44, true); // Subchunk2Size
+
+    return new Blob([result], { type: 'audio/wav' });
 }
 
 function addTypingIndicator() {
